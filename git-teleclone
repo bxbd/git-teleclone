@@ -121,6 +121,9 @@ function on_update(event, fn, force) {
         return;
     }
 
+    if( fn.match(/^\.git\b/ ) ) { //TODO, we'll need some kind of .ignore system maybe
+	    return;
+    }
     if( !force ) {
         if( shell.test('-e', lock_watch_file) ) { 
             return;
@@ -307,17 +310,16 @@ function cmd_watch(target) {
     //todo   also make sure origin is setup and we're sync'd to it
     
     var curbranch = git_current_branch();
-    telec.connect();
-    
     console.log('Telecloning local branch ' + curbranch + ' to ' + telec.target_name);
-    
-    if( shell.test('-e', lock_watch_file) ) shell.rm(lock_watch_file); //reset watch lock
-    shell.echo(process.pid).to(pid_file);
-    
-    var cwd = process.cwd();
-    console.log('watching', cwd);
-    var watcher = fs.watch( cwd, { persistent: true }, on_update );
-    
+    telec.connect({ callback: function() {
+        if( shell.test('-e', lock_watch_file) ) shell.rm(lock_watch_file); //reset watch lock
+        shell.echo(process.pid).to(pid_file);
+        
+        var cwd = process.cwd();
+        var watcher = fs.watch( cwd, { persistent: true }, on_update );
+        
+        console.log('Watching ' + cwd);    
+    }});
     return 0;
 }
 
