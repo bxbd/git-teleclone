@@ -44,6 +44,11 @@ function main() {
         .action(cmd_add);
     
     program
+        .command('remove <name>')
+        .description('Remove a remote to teleclone to')
+        .action(cmd_del);
+    
+    program
         .command('watch [name|url]')
         .description('Starts the loop to monitor files and *handle* them, optionally specifying remote')
         .action(cmd_watch);
@@ -73,6 +78,10 @@ function main() {
 
 function cmd_init(remote) {
     console.log(remote);
+}
+
+function cmd_del(name, url) {
+    GitTeleclone.del(name, url);
 }
 
 function cmd_add(name, url) {
