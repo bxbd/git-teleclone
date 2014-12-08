@@ -23,7 +23,7 @@ var input = (function() {
         'get': function(txt, cb) {
             prompt.start();
             prompt.get([txt], function(err, result) {
-                cb(result[txt]);
+                cb(result ? result[txt] : '');
             });
         }
     };
@@ -76,7 +76,7 @@ function cmd_init(remote) {
 }
 
 function cmd_add(name, url) {
-    telec.add(name, url);
+    GitTeleclone.add(name, url);
 }
 
 function teleclone_file(update_type, fn) {//finally, do the thing we're here for
@@ -148,11 +148,11 @@ function _on_update(event, fn) {
     }
     
     //is it git tracked 
-    //~ var git_tracked = git_is_tracked(fn);
-    //~ if( !git_tracked ) {
-        //maybe add it?
-    //~ }
-    //~ else {
+    var git_tracked = git_is_tracked(fn);
+    if( !git_tracked ) {
+        //~ //maybe add it?
+    }
+    else {
         //is it changed
         //~ if( !git_diffstat(fn).changed ) {
             //~ return false;
@@ -162,12 +162,13 @@ function _on_update(event, fn) {
         var local_hash = update_type != 'delete' ? git('hash-object -- ' + fn).lines[0] : '';
         
         //what we think is on the server
+        //TODO, if the file is not staged this should be null....
         var local_cachedhash = (git('ls-files -s -- ' + fn).lines[0].split(/\s+/))[1];
         
         if( local_hash == local_cachedhash ) {
             //TODO, allow override with force of some kind i suppose
-            console.log('seems like no change since last upload');
-            return;
+            //~ console.log('seems like no change since last upload');
+            //~ return;
         }
         
         //what's on the server?
@@ -178,8 +179,10 @@ function _on_update(event, fn) {
                     //check the local board for what we think is on the server, to know if it's ok to overwrite without prompt
                 
                 var do_upload = false;
-                
-                if( remote_hash == local_cachedhash ) {//we edited a file we already uploaded once without committing
+                if( remote_hash.match(/^\s*$/) ) {
+                    do_upload = true;
+                }
+                else if( remote_hash == local_cachedhash ) {//we edited a file we already uploaded once without committing
                     do_upload = true;
                 }
                 else {
@@ -250,7 +253,7 @@ function _on_update(event, fn) {
         //todo & optional
         //~ if( !perform_commit(fn) ) return;
         
-    //~ }
+    }
 }
 
 var SIGNAL_GENTLE_KILL = 'SIGUSR2';
@@ -289,7 +292,7 @@ function cmd_watch(target) {
         cmd_unwatch();
     }
     
-    global.telec = new GitTeleclone(target);
+    global.telec = GitTeleclone.start(target);
     
     //todo commit or bail if there are changes on startup
     //todo   also make sure origin is setup and we're sync'd to it
