@@ -10,6 +10,23 @@ var lock_watch_file = '.git/git-watch.LCK';
 var _update_hold_ms = 750;
 var tagstamp_prefix = 'AUTO-';
 
+/* 
+    Console output legend:
+        !! a function wrapping other system calls has begun
+        !? the result of the previous !! function 
+        
+         $ a system command that was run
+           >? the exit code of the last command
+           >> the output of the last command
+         
+         % a system command run on a teleclone target
+           %? the exit code of the last teleclone target command (TODO)
+           %> the output of the last teleclone target command
+           
+        # an informative notice
+        Anything else, something actual action that occurred or is being taken
+*/
+
 require('console-stamp')(console, '[HH:MM:ss.l]');
 
 //this probably has to be on the filesystem
@@ -30,21 +47,26 @@ var input = (function() {
 })();
 
 function main() {
-    var rd = git_root_dir();
+    var rdo = git_root_dir();
+    if( !!rdo.code ) {
+        console.log('Not a git tracked directory, run git init');
+        process.exit();
+    }
+    var rd = rdo.output;
     process.chdir(rd);
     
-    //~ if( !telec.is_installed ) {
-        //~ console.log('git teleclone has not been installed in this repository, run\n\tgit telec add');
-        //~ return;
-    //~ }
-
     program
-        .command('add <name> <url>')
+        .command('add-config <name> <url>')
         .description('Add a remote to teleclone to')
         .action(cmd_add);
     
     program
-        .command('remove <name>')
+        .command('set-config <name> <url>')
+        .description('Change a remote to teleclone to')
+        .action(cmd_set);
+    
+    program
+        .command('remove-config <name>')
         .description('Remove a remote to teleclone to')
         .action(cmd_del);
     
@@ -54,19 +76,19 @@ function main() {
         .action(cmd_watch);
     
     program
-        .command('unwatch [remote]')
+        .command('unwatch [name]')
         .description('Stops watch loops, all by default')
         .action(cmd_unwatch);
 
-    /* controls, watch and hook end up calling these */
-    program.command('updated <file>')
+    /* controls, watch and hook end up calling these, TODO: don't let them be called while watch is on */
+    program.command('update <file>')
         .description('Trigger save event on file')
         .action(cmd_updated);
         
-    program.command('created')
+    program.command('create <file>')
         .description('Trigger create event on file')
         
-    program.command('deleted')
+    program.command('delete <file>')
         .description('Trigger delete event on file')
 
     var pa = program.parse(process.argv);
@@ -81,11 +103,15 @@ function cmd_init(remote) {
 }
 
 function cmd_del(name, url) {
-    GitTeleclone.del(name, url);
+    GitTeleclone.del_config(name, url);
+}
+
+function cmd_set(name, url) {
+    GitTeleclone.set_config(name, url);
 }
 
 function cmd_add(name, url) {
-    GitTeleclone.add(name, url);
+    GitTeleclone.add_config(name, url);
 }
 
 function teleclone_file(update_type, fn) {//finally, do the thing we're here for
@@ -170,72 +196,81 @@ function _on_update(event, fn) {
             //~ return false;
         //~ }
         
-        //what we do have here
-        var local_hash = update_type != 'delete' ? git('hash-object -- ' + fn).lines[0] : '';
-        
-        //what we think is on the server
-        //TODO, if the file is not staged this should be null....
-        var local_cachedhash = (git('ls-files -s -- ' + fn).lines[0].split(/\s+/))[1];
-        
-        if( local_hash == local_cachedhash ) {
-            //TODO, allow override with force of some kind i suppose
-            //~ console.log('seems like no change since last upload');
-            //~ return;
-        }
-        
-        //what's on the server?
-        telec.remote_hash(fn, function(remote_hash) {
-            if( local_hash != remote_hash ) {
-                //if the staging scheme doesn't work out...
-                    //now .. we need a bingoboard, if the hash of the local and remote bingoboards are equal, we have a good sign
-                    //check the local board for what we think is on the server, to know if it's ok to overwrite without prompt
-                
-                var do_upload = false;
-                if( remote_hash.match(/^\s*$/) ) {
-                    do_upload = true;
-                }
-                else if( remote_hash == local_cachedhash ) {//we edited a file we already uploaded once without committing
-                    do_upload = true;
-                }
-                else {
-                    var local_headhash = (git('ls-tree HEAD -- ' + fn).lines[0].split(/\s+/))[2];
-                    if( remote_hash == local_headhash ) {//we edited a file for a first time since latest commit
+        var git_hash_cb = function(local_hash) {
+            //what we think is on the server
+            //TODO, if the file is not staged this should be null....
+            var local_cachedhash = (git('ls-files -s -- ' + fn).lines[0].split(/\s+/))[1];
+            
+            if( local_hash == local_cachedhash ) {
+                //TODO, allow override with force of some kind i suppose
+                //~ console.log('seems like no change since last upload');
+                //~ return;
+            }
+            
+            //what's on the server?
+            telec.remote_hash(fn, function(remote_hash) {
+                if( local_hash != remote_hash ) {
+                    //if the staging scheme doesn't work out...
+                        //now .. we need a bingoboard, if the hash of the local and remote bingoboards are equal, we have a good sign
+                        //check the local board for what we think is on the server, to know if it's ok to overwrite without prompt
+                    
+                    var do_upload = false;
+                    if( remote_hash.match(/^\s*$/) ) {
+                        console.log("# File isn't on remote, creating");
+                        do_upload = true;
+                    }
+                    else if( remote_hash == local_cachedhash ) {
+                        //we edited a file we already uploaded once without committing, all good
+                        console.log("# File on remote is our last edit, replacing");
                         do_upload = true;
                     }
                     else {
-                        //does that hash exist in the repo at all?
-                        var has_existed = false;
-                        var objects = git('rev-list --all --objects', true).lines;
-                        objects.forEach(function(v, i, a) {
-                            if( v.match('^' + remote_hash) ) {
-                                //we can know it's in the repo, but see git-rig lib for finding WHICH commit
-                                has_existed = true;
-                            }
-                        });
-                        if( has_existed ) {
-                            console.log('File on target was found in repository from an earlier commit, overwrite?');
+                        var local_headhash = (git('ls-tree HEAD -- ' + fn).lines[0].split(/\s+/))[2];
+                        if( remote_hash == local_headhash ) {//we edited a file for a first time since latest commit
+                            console.log("# File on remote is at HEAD, replacing");
+                            do_upload = true;
                         }
                         else {
-                            console.log('File on target was not found in repository, try updating repo, or overwrite?');
-                        
-                        }
-                        
-                        input.get('y/n', function(ans) {
-                            if( ans.match(/^y\s*$/i) ) {
-                                teleclone_file(update_type, fn);
+                            //does that hash exist in the repo at all?
+                            var has_existed = git_find_blob(remote_hash);
+                            if( has_existed ) {
+                                //it's old?
+                                console.log('# File on remote is at an earlier commit, [' + has_existed + ']');
+                                //~ console.log( git('show ' + has_existed, true).output );
+                                console.log('Overwrite?');
                             }
-                        });
+                            else {
+                                console.log('File on target was not found in repository, try updating repo, or overwrite?');
+                                //TODO, run a git pull? and then recheck some hashes
+                            }
+                            
+                            if( !do_upload ) {
+                                input.get('y/n', function(ans) {
+                                    if( ans.match(/^y\s*$/i) ) {
+                                        teleclone_file(update_type, fn);
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    
+                    if( do_upload ) {
+                        teleclone_file(update_type, fn);
                     }
                 }
-                
-                if( do_upload ) {
-                    teleclone_file(update_type, fn);
+                else {
+                    console.log( '# File on target is identical to local');
                 }
-            }
-            else {
-                console.log( fn + ' on target is identical to local');
-            }
-        });
+            });
+        };
+        
+        //what we do have here
+        if( update_type != 'delete' ) {
+            git_hash(fn, git_hash_cb);
+        }
+        else {
+            git_hash_cb('');
+        }
         
         /* 
         get the remote repository's object id of the file
@@ -290,7 +325,7 @@ function cmd_unwatch(is_self) {
 
 
 process.on(SIGNAL_GENTLE_KILL, function() {
-    console.log('watch was requested to abort');
+    console.log('[' + process.pid + '] watch was requested to abort');
     cmd_unwatch();
     process.exit();
 });
@@ -313,7 +348,7 @@ function cmd_watch(target) {
     console.log('Telecloning local branch ' + curbranch + ' to ' + telec.target_name);
     telec.connect({ callback: function() {
         if( shell.test('-e', lock_watch_file) ) shell.rm(lock_watch_file); //reset watch lock
-        shell.echo(process.pid).to(pid_file);
+        fs.writeFileSync(pid_file, process.pid);
         
         var cwd = process.cwd();
         var watcher = fs.watch( cwd, { persistent: true }, on_update );
@@ -325,8 +360,19 @@ function cmd_watch(target) {
 
 function cmd_updated(file) {
     console.log('updated', file);
-    //if no gitrig dir get loud etc
-    on_update('change', file, true);
+    _on_update('change', file);
+    return 0;
+}
+
+function cmd_created(file) {
+    console.log('created', file);
+    _on_update('rename', file);
+    return 0;
+}
+
+function cmd_deleted(file) {
+    console.log('deleted', file);
+    _on_update('rename', file);
     return 0;
 }
 
