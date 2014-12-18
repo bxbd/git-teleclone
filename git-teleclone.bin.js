@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 
+//TODO, not sure why i made these all global, undo that
 global.program = require('commander');
 global.shell = require('shelljs');
 global.fs = require('fs.extra');
 global.inquirer = require('inquirer');
+
+var urlparse = require('url').parse;
 
 var filesize = require('filesize');
 var fmt_filesize = function(size) {
@@ -124,12 +127,14 @@ function main() {
 
 
     program
-        .command('add-remote <name> <url>')
+        .command('add-remote <url>')
+        .option('-n, --target-name <target>', 'Target host, usually')
         .description('Add a remote to teleclone to')
         .action(cmd_add);
 
     program
-        .command('set-remote <name> <url>')
+        .command('set-remote <url>')
+        .option('-n, --target-name <target>', 'Target host, usually')
         .description('Change a remote to teleclone to')
         .action(cmd_set);
 
@@ -195,11 +200,24 @@ function cmd_del(name, url) {
     GitTeleclone.del_remote(name, url);
 }
 
-function cmd_set(name, url) {
+function cmd_set(url, args) {
+    var name = args.target;
+    if( !name ) {
+        var url = urlparse(url);
+        name = url.host;
+    }
+
+
     GitTeleclone.set_remote(name, url);
 }
 
-function cmd_add(name, url) {
+function cmd_add(url, args) {
+    var name = args.target;
+    if( !name ) {
+        var url = urlparse(url);
+        name = url.host;
+    }
+
     GitTeleclone.add_remote(name, url);
 }
 
