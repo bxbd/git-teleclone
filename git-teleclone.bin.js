@@ -3,7 +3,7 @@
 global.program = require('commander');
 global.shell = require('shelljs');
 global.fs = require('fs.extra');
-global.prompt = require('prompt');
+global.inquirer = require('inquirer');
 
 var filesize = require('filesize');
 var fmt_filesize = function(size) {
@@ -45,6 +45,38 @@ var GitTeleclone = require('./lib/git-teleclone.js');
 //move input out later, and we can reroute questions into a gui wrapper hopefully
 global.input = (function() {
     return {
+        // 'get': function() {
+        //     var txt, extraargs, cb;
+        //
+        //     var txt = arguments[0];
+        //     if( arguments.length > 2 ) {
+        //         extraargs = arguments[1];
+        //         cb = arguments[2];
+        //     }
+        //     else {
+        //         extraargs = {};
+        //         cb = arguments[1];
+        //     }
+        //
+        //     var args = {
+        //         'properties': {
+        //             'the_q': {
+        //                 'message': ':'
+        //             }
+        //         }
+        //     };
+        //     Object.keys(extraargs).forEach(function(v, i, a) {
+        //         args.properties.the_q[v] = extraargs[v];
+        //     });
+        //
+        //     prompt.message = txt;
+        //     prompt.colors = false;
+        //     prompt.delimiter = '';
+        //     prompt.start();
+        //     prompt.get(args, function(err, result) {
+        //         cb(result ? result['the_q'] : '');
+        //     });
+        // },
         'get': function() {
             var txt, extraargs, cb;
 
@@ -58,22 +90,17 @@ global.input = (function() {
                 cb = arguments[1];
             }
 
-            var args = {
-                'properties': {
-                    'the_q': {
-                        'message': ':'
-                    }
-                }
-            };
+            var questions = [{
+                'type': 'confirm',
+                'name': 'the_q',
+                'message': txt,
+                'default': 'y',
+            }];
             Object.keys(extraargs).forEach(function(v, i, a) {
-                args.properties.the_q[v] = extraargs[v];
+                questions[v] = extraargs[v];
             });
 
-            prompt.message = txt;
-            prompt.colors = false;
-            prompt.delimiter = '';
-            prompt.start();
-            prompt.get(args, function(err, result) {
+            inquirer.prompt( questions, function(err, result) {
                 cb(result ? result['the_q'] : '');
             });
         }
@@ -92,7 +119,7 @@ function main() {
 
     program
         .command('show-remote [name]')
-        .description('Show a remote by name')
+        .description('Show a remote by name, or show all remotes')
         .action(cmd_show);
 
 
@@ -145,17 +172,17 @@ function main() {
     program.command('delete <file>')
         .description('Trigger delete event on file')
 
-    var default_cmd = program.command('*');
+    // var default_cmd = program.command('*');
 
     var pa = program.parse(process.argv);
-    default_cmd.action(function() { pa.outputHelp });
+    // default_cmd.action(function() { pa.outputHelp() });
 
     if( pa.args.length == 0 ) {
         return cmd_watch();
     }
-    else if( typeof(pa.args[1]) == 'string' ) {
-        // console.log(pa);
-        // pa.outputHelp();
+    else if( typeof(pa.args[0]) == 'undefined' ) {
+        pa.outputHelp('fill');
+        process.exit();
     }
     return pa;
 }
@@ -299,11 +326,12 @@ function _on_update(event, fn) {
                             if( has_existed ) {
                                 //it's old?
                                 console.log('# File on remote is at an earlier commit, [' + has_existed + ']');
+                                pmsg = 'Overwrite?';
                                 //~ console.log( git('show ' + has_existed, true).output );
-                                console.log('Overwrite?');
                             }
                             else {
                                 console.log('Hash of file on target was not found in repository, try updating repo, or overwrite this unknown file?');
+                                pmsg = 'Overwrite anyway?'
                                 if( localfn ) {
                                     //TODO, copy out the .tmp version to the working dir
                                 }
@@ -311,7 +339,7 @@ function _on_update(event, fn) {
                             }
 
                             if( !do_upload ) {
-                                input.get('y/n', function(ans) {
+                                input.get(pmsg + 'y/n', function(ans) {
                                     if( ans.match(/^y\s*$/i) ) {
                                         teleclone_file(update_type, fn);
                                     }
@@ -439,6 +467,8 @@ function cmd_watch(target) {
         });
         gaze.on('all', on_update);
     }});
+
+
     return 0;
 }
 

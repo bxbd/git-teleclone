@@ -23,7 +23,8 @@
     "fs.extra": "^1.2.1"
   },
   "devDependencies": {
-    "mocha": "^2.0.1"
+    "mocha": "^2.0.1",
+    "keypair": "^1.0.0"
   },
   "bin": {
     "git-teleclone": "git-teleclone.bin.js"
