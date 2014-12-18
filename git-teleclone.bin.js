@@ -462,7 +462,7 @@ function cmd_watch(target) {
                     process.exit();
                 }
 
-                console.log('Watching ' + (Object.keys(files))[0]);
+                console.log('Watching ' + cwd);
             });
         });
         gaze.on('all', on_update);
