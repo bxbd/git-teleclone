@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 
+//TODO, not sure why i made these all global, undo that
 global.program = require('commander');
+
 global.shell = require('shelljs');
 global.fs = require('fs.extra');
 global.inquirer = require('inquirer');
+
+var dashdash = require('dashdash');
+var readline = require('readline');
+var urlparse = require('url').parse;
 
 var filesize = require('filesize');
 var fmt_filesize = function(size) {
@@ -30,6 +36,8 @@ var tagstamp_prefix = 'AUTO-';
          % a system command run on a teleclone target
            %? the exit code of the last teleclone target command (TODO)
            %> the output of the last teleclone target command
+
+        @ teleclone prompt
 
         # an informative notice
         Anything else, something actual action that occurred or is being taken
@@ -122,14 +130,15 @@ function main() {
         .description('Show a remote by name, or show all remotes')
         .action(cmd_show);
 
-
     program
-        .command('add-remote <name> <url>')
+        .command('add-remote <url>')
+        .option('-n, --target-name <target>', 'Target host, usually')
         .description('Add a remote to teleclone to')
         .action(cmd_add);
 
     program
-        .command('set-remote <name> <url>')
+        .command('set-remote <url>')
+        .option('-n, --target-name <target>', 'Target host, usually')
         .description('Change a remote to teleclone to')
         .action(cmd_set);
 
@@ -172,6 +181,46 @@ function main() {
     program.command('delete <file>')
         .description('Trigger delete event on file')
 
+    /* interactive only */
+    program.command('login')
+        .option('-n, --target-name <target>', 'Target host, usually')
+        .description('Login to a remote and start interactive prompt')
+        .action(cmd_login);
+
+    //TODO, interactive
+    /*
+        must be structured so that command line `git teleclone abc 123`
+        is the same as command on tc prompt: @ abc 123
+        difference is that from the command line we do an implicit `login` first
+            or v2, we use a daemon system where command line execs are piped to a port of a running teleclone connection
+            (so on startup, say a pid file exists, pipe to its port, output the output and exit)
+        but a most of commandline commands aren't appropriate for a logged in prompt
+            otoh, all of the interactive commands make sense on the command line (execpt the l* commands)
+
+        command('login')  ..like watch but no fs watch...
+
+        interactive must support ...
+            watch
+                pause
+                stop
+                status
+
+            cd, lcd
+            ls, lls (-l, -a at least)
+            pwd, lpwd
+
+            get
+            put
+            hash, lhash
+            stat, lstat (or info, linfo?)
+
+            sftp <cmd>
+            if ssh, exec <cmd>
+
+            v2, scan, find
+    */
+
+
     // var default_cmd = program.command('*');
 
     var pa = program.parse(process.argv);
@@ -195,12 +244,24 @@ function cmd_del(name, url) {
     GitTeleclone.del_remote(name, url);
 }
 
-function cmd_set(name, url) {
-    GitTeleclone.set_remote(name, url);
+function cmd_set(tcurl, args) {
+    var name = args['targetName'];
+    if( !name ) {
+        var url = urlparse(tcurl);
+        name = url.host;
+    }
+
+    GitTeleclone.set_remote(name, tcurl);
 }
 
-function cmd_add(name, url) {
-    GitTeleclone.add_remote(name, url);
+function cmd_add(tcurl, args) {
+    var name = args['targetName'];
+    if( !name ) {
+        var url = urlparse(tcurl);
+        name = url.host;
+    }
+
+    GitTeleclone.add_remote(name, tcurl);
 }
 
 function teleclone_file(update_type, fn) {//finally, do the thing we're here for
@@ -430,6 +491,71 @@ process.on(SIGNAL_GENTLE_KILL, function() {
 process.on('SIGINT', function() {
     cmd_unwatch(true);
 });
+
+function _interactive_complete(sofar, callback) {
+    // console.log(sofar);
+    //show result:
+    var matches = ['xyz', 'xyz', 'xyz', 'xyz', 'xyz', ];
+    var matchstr = sofar;
+    callback(null, [ matches, matchstr ]);
+}
+
+function _interactive_command(cmd) {
+    console.log(cmd);
+    var pa = program.parse(cmd);
+    console.log(pa);
+
+    this.prompt();
+}
+
+function _start_prompt() {
+    var r = readline.createInterface({
+        // terminal: true,
+        input: process.stdin,
+        output: process.stdout,
+        completer: _interactive_complete,
+    })
+    r.setPrompt('@ ');
+
+    r.on('line', _interactive_command);
+
+    r.on('SIGTSTP', function() {
+        console.log('# TODO, User sleep');
+    });
+    r.on('SIGCONT', function() {
+        console.log('# TODO, User sleep resume');
+    });
+
+    r.on('SIGINT', function() {
+        console.log('# User exit');
+        process.exit()
+    });
+
+    r.on('close', function() {
+        console.log('# User exit');
+        process.exit()
+    });
+
+    r.prompt();
+}
+
+function cmd_login(args) {
+    var target = args.targetName;
+
+    global.telec = GitTeleclone.load(target);
+    if( !telec ) process.exit();
+
+    var curbranch = git_current_branch();
+    console.log('Telecloning local branch ' + curbranch + ' to ' + telec.target_name);
+    telec.connect({ callback: function() {
+        var cwd = process.cwd();
+
+        _start_prompt();
+    }});
+
+
+    return 0;
+}
 
 function cmd_watch(target) {
     if( shell.test('-e', pid_file) ) {
