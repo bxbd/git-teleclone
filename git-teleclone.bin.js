@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+//TODO add an option to timeout a watch process.  if no uploads in Xminutes, disconnect/die
+
 //TODO, not sure why i made these all global, undo that
 global.program = require('commander');
 
@@ -99,10 +101,10 @@ global.input = (function() {
             }
 
             var questions = [{
-                'type': 'confirm',
+                'type': (extraargs['hidden'] ? 'password' : 'confirm'),
                 'name': 'the_q',
                 'message': txt,
-                'default': 'y',
+                'default': (extraargs['hidden'] ? null : 'y')
             }];
             Object.keys(extraargs).forEach(function(v, i, a) {
                 questions[v] = extraargs[v];
@@ -126,27 +128,15 @@ function main() {
     process.chdir(git_root);
 
     program
-        .command('show-remote [name]')
+        .command('remote')
+        .option('-a, --add <url>', 'Add a new remote to this url')
+        .option('-u, --upd <url>', 'Update a remote to a new url (pass -n if more than one already defined)')
+        .option('-d, --del <url|name>', 'Delete a remote')
+        .option('-n, --target-name <target>', 'Target host by name (when adding, this sets name)')
         .description('Show a remote by name, or show all remotes')
-        .action(cmd_show);
+        .action(cmd_manage_remote);
 
-    program
-        .command('add-remote <url>')
-        .option('-n, --target-name <target>', 'Target host, usually')
-        .description('Add a remote to teleclone to')
-        .action(cmd_add);
-
-    program
-        .command('set-remote <url>')
-        .option('-n, --target-name <target>', 'Target host, usually')
-        .description('Change a remote to teleclone to')
-        .action(cmd_set);
-
-    program
-        .command('remove-remote <name>')
-        .description('Remove a remote to teleclone to')
-        .action(cmd_del);
-
+    
     program
         .command('watch [name|url]')
         .description('Starts the loop to monitor files and *handle* them, optionally specifying remote')
@@ -221,11 +211,13 @@ function main() {
     */
 
 
-    // var default_cmd = program.command('*');
+    //~ var default_cmd = program.command('*');
 
+    //~ program.on('err', function() { console.log(arguments) } );
     var pa = program.parse(process.argv);
     // default_cmd.action(function() { pa.outputHelp() });
-
+console.log(pa);
+process.exit();
     if( pa.args.length == 0 ) {
         return cmd_watch();
     }
@@ -233,35 +225,16 @@ function main() {
         pa.outputHelp('fill');
         process.exit();
     }
+    else {
+        console.log("Unknown command: " + pa.args);
+        pa.help();
+        process.exit();
+    }
     return pa;
 }
 
 function cmd_init(remote) {
     console.log(remote);
-}
-
-function cmd_del(name, url) {
-    GitTeleclone.del_remote(name, url);
-}
-
-function cmd_set(tcurl, args) {
-    var name = args['targetName'];
-    if( !name ) {
-        var url = urlparse(tcurl);
-        name = url.host;
-    }
-
-    GitTeleclone.set_remote(name, tcurl);
-}
-
-function cmd_add(tcurl, args) {
-    var name = args['targetName'];
-    if( !name ) {
-        var url = urlparse(tcurl);
-        name = url.host;
-    }
-
-    GitTeleclone.add_remote(name, tcurl);
 }
 
 function teleclone_file(update_type, fn) {//finally, do the thing we're here for
@@ -598,22 +571,49 @@ function cmd_watch(target) {
     return 0;
 }
 
-function cmd_show(name, args) {
+function cmd_manage_remote(args) {
+    if( args.add ) {
+        var tcurl = args.add;
+        var name = args['targetName'];
+        if( !name ) {
+            var url = urlparse(tcurl);
+            name = url.host;
+        }
 
-    var configs = GitTeleclone.show_remote();
-    Object.keys(configs).forEach(function(v, i, a) {
-        console.log(v, configs[v]);
-    });
-    process.exit();
-    if( !pn ) {
-        pn = path.relative(git_root, calling_dir);
+        GitTeleclone.add_remote(name, tcurl);
     }
     else {
-        pn = path.join( path.relative(git_root, calling_dir), pn);
-    }
+        console.log(args.add); 
+        process.exit();
+        function cmd_del(name, url) {
+            GitTeleclone.del_remote(name, url);
+        }
 
-    if( !telec ) process.exit();
-    console.log(telec.target_url);
+        function cmd_set(tcurl, args) {
+            var name = args['targetName'];
+            if( !name ) {
+                var url = urlparse(tcurl);
+                name = url.host;
+            }
+
+            GitTeleclone.set_remote(name, tcurl);
+        }
+        
+        var configs = GitTeleclone.show_remote();
+        Object.keys(configs).forEach(function(v, i, a) {
+            console.log(v, configs[v]);
+        });
+        process.exit();
+        if( !pn ) {
+            pn = path.relative(git_root, calling_dir);
+        }
+        else {
+            pn = path.join( path.relative(git_root, calling_dir), pn);
+        }
+
+        if( !telec ) process.exit();
+        console.log(telec.target_url);
+    }
 }
 
 function cmd_fill(pn, args) {
