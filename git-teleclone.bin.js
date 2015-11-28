@@ -3,8 +3,34 @@
 "use strict";
 
 global._ = require('lodash');
+global.chalk = require('chalk');
 
 var Teleclone = require("./lib/index");
+
+// var domain = require('domain');
+// var d = domain.create();
+//                             d.on('error', function(er) {
+//                           console.error('Caught error!', er);
+//                         });
+//                         console.log(d);
+
+global.teleclone = false;
+
+function main() {
+
+    var Git = require("nodegit");
+    Git.Repository.open(".").then(function(repo) {
+        global.teleclone = new Teleclone(repo);
+
+        teleclone.init(function(self) {
+
+            this.show( );
+        });
+    })
+
+}
+
+
 // global.minimist = require('minimist');
 // function parse_arguments(cmdline, arg_opts) {
 //     return minimist(cmdline, arg_opts);
@@ -38,11 +64,6 @@ var Teleclone = require("./lib/index");
 //
 //     return cb();
 // }
-function main() {
 
-    var tc = new Teleclone();
-
-    tc.show();
-}
 
 main();
