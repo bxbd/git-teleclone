@@ -2,9 +2,6 @@
 
 "use strict";
 
-global._ = require('lodash');
-global.chalk = require('chalk');
-
 var Teleclone = require("./lib/index");
 
 // var domain = require('domain');

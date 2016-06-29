@@ -1,8 +1,8 @@
 {
   "name": "git-teleclone",
-  "prettyName": "git Teleclone",
-  "version": "0.0.2",
-  "description": "Spooky action at a distance, to filesystems",
+  "prettyName": "Git Teleclone",
+  "version": "0.0.3",
+  "description": "Spooky action at a distance: sync your git-tracked folders with remote machines",
   "private": true,
   "repository": {
     "type": "git",
