@@ -51,10 +51,10 @@ var _git_test = function(cmd, italso, opts) {
 module.exports = {
 
    git: function(cmd, italso, opts) {
-      return _git_test('git ' + cmd, italso, opts);
+      return _git_run('git ' + cmd, italso, opts);
    },
    gittc: function(cmd, italso, opts) {
-      return _git_test('git teleclone ' + cmd, italso, opts);
+      return _git_run('git teleclone ' + cmd, italso, opts);
    },
    setup_workspace: function(cb) {
       var token = require('crypto').randomBytes(64).toString('hex');

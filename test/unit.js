@@ -2,7 +2,6 @@
 
 'use strict';
 var assert = require('chai').assert;
-var chdir = require('chdir');
 
 // var moment = require('moment');
 var program = require('commander');
@@ -16,102 +15,71 @@ var nodegit = require("nodegit");
 
 var workspace = tools.setup_workspace();
 var Teleclone = require('../lib/index');
+function boogie() {console.log('boogie!!')}
 
 describe('Teleclone', function(){
     before(function(done) {
         var test = this;
         var gitdir = tools.setup_workspace();
-        chdir(gitdir, function() {
-            git('init');
-            return nodegit.Repository.open('.').then(function(repo) {
-                test.repo = repo;
-                assert.instanceOf(repo, nodegit.Repository, 'it\'s a repo!');
+        test.origdir = process.cwd();
+        process.chdir(gitdir);
+
+        git('init');
+        shell.echo('1 init\n').to('testfile');
+
+        git('add testfile', false, {empty_ok: true});
+
+        git('commit testfile -m "initial commit"');
+        git('status');
+
+        git('ls-files --full-name --stage');
+        test.commits = [ git('rev-parse HEAD').output ];
+
+        return nodegit.Repository.open('.').then(function(repo) {
+            test.repo = repo;
+            test.repo.getMasterCommit().then(function(firstCommitOnMaster) {
+                test.our_hash = firstCommitOnMaster.id().toString();
                 done();
             });
         });
-
     });
 
-    // after(function() {
-    //     chdir.pop();
-    // });
+    after(function() {
+        process.chdir(this.origdir);
+    });
 
-    it('should be a valid repository', function(done) {
-        console.log(this.repo);
-        assert.instanceOf(this.repo, nodegit.Repository, 'it\'s a repo!');
-        return this.repo.getMasterCommit().then(function(firstCommitOnMaster) {
-            console.log(firstCommitOnMaster);
-            done();
+    describe('Verify repository objects', function() {
+        it('should match init', function() {
+            assert.instanceOf(this.repo, nodegit.Repository, 'it\'s a repo!');
+
+                // assert.instanceOf(firstCommitOnMaster, nodegit.Commit, 'it\'s a commit!');
+                // boogie();
+            var expected_hash = this.commits[0];
+            assert.strictEqual(this.our_hash, expected_hash, 'nodgit repo hash does not match shell created hash');
         });
     });
 
-//
-//                     // assert.fail('not ok!', 'ok.');
-//                     // var promise =
-//
-//                     var x = nodegit.Repository.open(".");
-//                     x.then(function(repo) {
-//                     // .done(
-//                     // return setTimeout(function() {
-//                         assert.instanceOf(repo, 'Repository', 'it\'s a repo!');
-//                         assert.instanceOf(repo, 'Repository', 'it\'s a repo!');
-//                         // assert.fail('not ok!', 'ok.');
-//                         // assert.equal(result, 1, 'maybeFirst([1, 2, 3]) is 1');
-//                         // done();
-//                     },
-//                     function(err) {
-//                         console.log(err);
-//                         assert.fail(err, 'ok.');
-//                     });
-//                     // console.log(x);
-//                     // return x;
-// // assert.fail('!', x);
-//                 });
-//                                         // assert.instanceOf(repo, 'Repository', 'it\'s a repo!');
-
-
-        // assert.fail('not ok!', 'ok.');
-        // done();
-        // var nodegit = require("nodegit");
-        // nodegit.Repository.open(".").then(function(repo) {
-        //     assert.typeOf(repo, 'Repository');
-        //     assert.fail('not ok!', 'ok.');
-        //     // assert.equal(result, 1, 'maybeFirst([1, 2, 3]) is 1');
-        //     done();
-        // })
-
-    // });
+    describe('Setup Teleclone object', function() {
+        before(function(done) {
+            var test = this;
+            var tc = new Teleclone(this.repo);
+            // assert.instanceOf(tc, Teleclone);
+            tc.init(function(self) {
+                test.tc = this;
+                done();
+            });
+        });
+        it('should construct successfully', function() {
+            assert.instanceOf(this.tc, Teleclone);
+            assert.instanceOf(this.tc.config, Teleclone.TelecloneConfig);
+        });
+        it('can have a remote added to it', function() {
+            this.tc.config
+        });
+    });
 });
 
-// (function() {
-//     assert('OK!');
-//     nodegit.Repository.open(".").then(function(repo) {
-//         assert('OK!');
-//         global.teleclone = new Teleclone(repo);
-//         assert('OK!');
-//         teleclone.init(function(self) {
-//             assert('OK!');
-//             console.log(self);
-//         });
-//     })
-// })();
 
-
-// describe('git setup', function(){
-//    git('init');
-//
-//    shell.echo('1 init\n').to('testfile');
-//    //~ describe('create testfile', function() {
-//       //~ assert.equal( true, shell.cat('testfile') == 'init' );
-//    //~ });
-//
-//    git('add testfile', false, {empty_ok: true});
-//
-//    git('commit testfile -m "initial commit"');
-//    git('status');
-//
-//    git('ls-files --full-name --stage');
-// });
 //
 // describe('TelecloneTarget', function(){
 //     it
