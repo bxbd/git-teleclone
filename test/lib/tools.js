@@ -7,7 +7,7 @@ var assert = require("assert")
 var _git_run = function(cmd, quiet) {
    //~ if( !cmd.match(/^git(rig)? /) ) cmd = 'git ' + cmd;
 
-   console.log('$ ' + cmd);
+   // console.log('$ ' + cmd);
    var ret = shell.exec(cmd, {silent: true});
 
    ret.output = ret.output.replace(/^\s*|\s$/g, '');
@@ -18,24 +18,24 @@ var _git_run = function(cmd, quiet) {
       ret.lines = ret.output.split("\n");
    }
 
-   console.log('>? ' + ret.code);
+   // console.log('>? ' + ret.code);
    if( !quiet ) {
-      console.log(ret.output + '\n--');
+    //   console.log(ret.output + '\n--');
    }
-   console.log('');
+   // console.log('');
    return ret;
 }
 
 var _git_test = function(cmd, italso, opts) {
    if( !opts ) opts = {};
-   describe(cmd, function() {
+   return describe('$ ' + cmd, function() {
       var ret = _git_run(cmd, false);
       it('should exit with 0', function(done) {
          assert.equal( 0, ret.code );
          done();
       })
       if( !opts['empty_ok'] ) {
-         it('should not be empty', function(done) {
+         it(ret.output, function(done) {
             assert.notEqual( '', ret.output );
             done();
          })
@@ -46,6 +46,8 @@ var _git_test = function(cmd, italso, opts) {
             it( a[0], function() { a[1](ret, a[2]) } );
          }
       }
+   console.log(this);
+      return ret;
    });
 }
 module.exports = {

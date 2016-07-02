@@ -21,7 +21,7 @@ function main() {
 
         teleclone.init(function(self) {
 
-            this.show( );
+            // this.show( );
         });
     })
 

@@ -21,11 +21,17 @@ describe('Teleclone', function(){
     before(function(done) {
         var test = this;
         var gitdir = tools.setup_workspace();
+
+        test.test_token = gitdir.split('/').pop();
+
         test.origdir = process.cwd();
         process.chdir(gitdir);
 
         git('init');
-        shell.echo('1 init\n').to('testfile');
+        //i'm pretty sure i had a reason for writing to files like this
+        // shell.echo('1 init\n').to('testfile');
+
+        fs.writeFileSync('testfile', '1 init\n');
 
         git('add testfile', false, {empty_ok: true});
 
@@ -55,27 +61,39 @@ describe('Teleclone', function(){
                 // assert.instanceOf(firstCommitOnMaster, nodegit.Commit, 'it\'s a commit!');
                 // boogie();
             var expected_hash = this.commits[0];
-            assert.strictEqual(this.our_hash, expected_hash, 'nodgit repo hash does not match shell created hash');
+            assert.strictEqual(this.our_hash, expected_hash, 'nodegit repo hash does not match shell created hash');
         });
     });
 
     describe('Setup Teleclone object', function() {
         before(function(done) {
             var test = this;
-            var tc = new Teleclone(this.repo);
-            // assert.instanceOf(tc, Teleclone);
-            tc.init(function(self) {
-                test.tc = this;
-                done();
-            });
+            test.tc = new Teleclone(this.repo);
+            return test.tc.open(done);
         });
         it('should construct successfully', function() {
             assert.instanceOf(this.tc, Teleclone);
             assert.instanceOf(this.tc.config, Teleclone.TelecloneConfig);
         });
         it('can have a remote added to it', function() {
-            this.tc.config
+            this.test_target = 'sftp://localhost:4000/' + this.test_token + '/';
+            this.tc.config.add_target('mytarget', this.test_target);
         });
+        it('has our added remote', function() {
+            var targets = this.tc.targets();
+
+            assert.equal(Object.keys(targets).length, 1, "number of targets doesn't match");
+            assert.ok('mytarget' in targets, "doesn't have 'mytarget'");
+
+            var mytarget = targets['mytarget'];
+            assert.instanceOf(mytarget, Teleclone.TelecloneTarget);
+            assert.equal(mytarget.target_url, this.test_target, "target string doesn't match");
+        });
+        it('connects to its target', function(done) {
+            this.tc.connect(done);
+        });
+
+        // this.tc.config.add_target('mytarget', 'sftp://localhost:4000/' + this.test_token + '/');
     });
 });
 
