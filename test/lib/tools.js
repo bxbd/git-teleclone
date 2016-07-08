@@ -61,25 +61,29 @@ module.exports = {
    gittc: function(cmd, italso, opts) {
       return _git_run('git teleclone ' + cmd, italso, opts);
    },
-   setup_workspace: function(cb) {
+   setup_workspace: function(cb, with_ssh) {
       var token = require('crypto').randomBytes(64).toString('hex');
       var gitdir = 'test-' + token.substr(0, 6);
 
       if( !shell.test('-d', 'tmp') ) {
           shell.mkdir('tmp');
 
-          console.log("Generating ssh keys for testing server");
-          var pair = keypair();
-          var publicKeyObj = forge.pki.publicKeyFromPem(pair.public);
-          var publicKey = forge.ssh.publicKeyToOpenSSH(publicKeyObj);
+          if( with_ssh ) {
+              console.log("Generating ssh keys for testing server");
+              var pair = keypair();
+              var publicKeyObj = forge.pki.publicKeyFromPem(pair.public);
+              var publicKey = forge.ssh.publicKeyToOpenSSH(publicKeyObj);
 
-          fs.writeFileSync('tmp/server.key.pub', publicKey);
-          fs.writeFileSync('tmp/server.key', pair.private);
+              fs.writeFileSync('tmp/server.key.pub', publicKey);
+              fs.writeFileSync('tmp/server.key', pair.private);
+          }
       }
 
-      this.keys = [];
-      this.keys.public = fs.readFileSync('tmp/server.key.pub');
-      this.keys.private = fs.readFileSync('tmp/server.key');
+      if( with_ssh ) {
+          this.keys = [];
+          this.keys.public = fs.readFileSync('tmp/server.key.pub');
+          this.keys.private = fs.readFileSync('tmp/server.key');
+      }
     //   process.chdir('tmp/');
 
       gitdir = 'tmp/' + gitdir;
